@@ -21,6 +21,7 @@ jobs:
     env:
       AUTH_SECRET_KEY: ci-only-secret-key-that-is-at-least-32-characters
       DATABASE_URL: sqlite:///./ci-test.db
+      GOOGLE_API_KEY: ci-only-no-network-test-key
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
