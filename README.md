@@ -70,10 +70,7 @@ Docker Compose starts PostgreSQL for document metadata and persists PostgreSQL, 
 
 Railway can deploy the frontend and backend directly from this repository and provides HTTPS domains without a separately purchased domain. Use the Hobby plan for persistent storage; it starts at $5/month and includes usage-based compute and storage charges, so configure a spend limit. Check [current Railway pricing](https://docs.railway.com/pricing). Railway Free is limited to one 0.5 GB volume per project, which is not a good fit for a backend data volume plus a database.
 
-1. Create a Railway project and connect `kvkrpm/DocuMind-AI` from GitHub. Create three services in the same Railway environment:
-   - **backend**: from this GitHub repository, root directory `/backend`, Dockerfile `Dockerfile`.
-   - **frontend**: from the same repository, root directory `/frontend`, Dockerfile `Dockerfile`.
-   - **PostgreSQL**: add Railway's PostgreSQL service.
+1. Create an empty Railway project. Add empty services named exactly `backend` and `frontend`, then add Railway's PostgreSQL service. In each app service's settings, set its root directory (`/backend` or `/frontend`) and connect the GitHub repository `kvkrpm/DocuMind-AI`. Use the Dockerfile in that service's root directory. Railway documents this [isolated monorepo workflow](https://docs.railway.com/deployments/monorepo).
 2. Attach a Railway volume to the backend service, mounted at `/app/data`. The backend image creates the data directories and runs the API as its non-root `app` user.
 3. Configure the **backend** service variables in Railway (use the dashboard's variable-reference picker for the PostgreSQL `DATABASE_URL`):
 
@@ -94,7 +91,7 @@ Railway can deploy the frontend and backend directly from this repository and pr
    ```
 
    Keep the service name `backend` so Railway's private DNS name matches. The frontend proxies API requests over Railway's private network; only the frontend needs a public domain.
-5. Deploy the frontend, then use its Railway **Generate Domain** action. Set the backend variables `FRONTEND_URL` and `CORS_ORIGINS` to that generated HTTPS URL, then redeploy the backend. A purchased domain is optional.
+5. Deploy the frontend, then use its Railway **Generate Domain** action (target port `80` if prompted). Set the backend variables `FRONTEND_URL` and `CORS_ORIGINS` to that generated HTTPS URL, then redeploy the backend. A purchased domain is optional.
 6. Smoke-test guest session creation, upload a small text-based PDF, ask a question and check its page citation, end the guest session, and confirm a redeploy preserves the PostgreSQL and backend volume data.
 
 Guest mode does not require SMTP. If you want account registration and password recovery to work, configure the SMTP variables too; without them, email-based registration cannot complete. Add your Gemini key and secrets only in Railway's Variables dashboard, never in GitHub. Set Railway spending controls and monitor Gemini API quota; Railway hosting and Gemini usage are separate costs.
