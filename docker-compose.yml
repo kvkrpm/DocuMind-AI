@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rag_metadata}
+      POSTGRES_USER: ${POSTGRES_USER:-rag_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rag_app} -d ${POSTGRES_DB:-rag_metadata}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    expose:
+      - "8000"
+    environment:
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:?Set GOOGLE_API_KEY in .env}
+      LLM_PROVIDER: gemini
+      CHROMA_PERSIST_DIR: /app/chroma_db
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-rag_app}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-rag_metadata}
+      AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:?Set AUTH_SECRET_KEY in .env}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      FRONTEND_URL: ${FRONTEND_URL:?Set FRONTEND_URL in .env}
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-*}
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-10}
+    volumes:
+      - chroma_data:/app/chroma_db
+      - uploads_data:/app/uploads
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  chroma_data:
+  uploads_data:
+  postgres_data:
