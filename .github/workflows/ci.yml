@@ -61,3 +61,16 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+
+  container-images:
+    name: Container images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: docker build --tag document-qa-backend:ci ./backend
+
+      - name: Build frontend image
+        run: docker build --tag document-qa-frontend:ci ./frontend

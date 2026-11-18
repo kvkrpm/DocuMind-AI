@@ -23,6 +23,7 @@ services:
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:?Set GOOGLE_API_KEY in .env}
       LLM_PROVIDER: gemini
       CHROMA_PERSIST_DIR: /app/chroma_db
+      UPLOAD_DIR: ${UPLOAD_DIR:-/app/uploads}
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-rag_app}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-rag_metadata}
       AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:?Set AUTH_SECRET_KEY in .env}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
@@ -43,6 +44,8 @@ services:
     restart: unless-stopped
     ports:
       - "${FRONTEND_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-5173}:80"
+    environment:
+      BACKEND_URL: ${BACKEND_URL:-http://backend:8000}
     depends_on:
       backend:
         condition: service_healthy

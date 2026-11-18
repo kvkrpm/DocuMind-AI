@@ -66,9 +66,42 @@ docker compose up --build
 
 Docker Compose starts PostgreSQL for document metadata and persists PostgreSQL, ChromaDB, and uploaded files in named volumes. The app is served at <http://localhost:5173>; the API and interactive documentation are available through <http://localhost:5173/docs>. The backend and database are not published directly to the host. The Compose frontend binds to loopback by default; place it behind an HTTPS reverse proxy for public access and set `FRONTEND_URL` and `CORS_ORIGINS` to the public HTTPS origin.
 
+## Deploy from GitHub on Railway
+
+Railway can deploy the frontend and backend directly from this repository and provides HTTPS domains without a separately purchased domain. Use the Hobby plan for persistent storage; it starts at $5/month and includes usage-based compute and storage charges, so configure a spend limit. Check [current Railway pricing](https://docs.railway.com/pricing). Railway Free is limited to one 0.5 GB volume per project, which is not a good fit for a backend data volume plus a database.
+
+1. Create a Railway project and connect `kvkrpm/DocuMind-AI` from GitHub. Create three services in the same Railway environment:
+   - **backend**: from this GitHub repository, root directory `/backend`, Dockerfile `Dockerfile`.
+   - **frontend**: from the same repository, root directory `/frontend`, Dockerfile `Dockerfile`.
+   - **PostgreSQL**: add Railway's PostgreSQL service.
+2. Attach a Railway volume to the backend service, mounted at `/app/data`. The backend image creates the data directories and runs the API as its non-root `app` user.
+3. Configure the **backend** service variables in Railway (use the dashboard's variable-reference picker for the PostgreSQL `DATABASE_URL`):
+
+   ```text
+   DATABASE_URL=<reference to PostgreSQL DATABASE_URL>
+   GOOGLE_API_KEY=<your Gemini API key>
+   AUTH_SECRET_KEY=<generated random secret, at least 32 characters>
+   CHROMA_PERSIST_DIR=/app/data/chroma_db
+   UPLOAD_DIR=/app/data/uploads
+   FORWARDED_ALLOW_IPS=*
+   ```
+
+   `FORWARDED_ALLOW_IPS=*` is only appropriate while the backend remains private to this Railway project and receives requests through the frontend proxy. Do not expose the backend directly with this setting.
+4. Configure the **frontend** service variable:
+
+   ```text
+   BACKEND_URL=http://backend.railway.internal:8000
+   ```
+
+   Keep the service name `backend` so Railway's private DNS name matches. The frontend proxies API requests over Railway's private network; only the frontend needs a public domain.
+5. Deploy the frontend, then use its Railway **Generate Domain** action. Set the backend variables `FRONTEND_URL` and `CORS_ORIGINS` to that generated HTTPS URL, then redeploy the backend. A purchased domain is optional.
+6. Smoke-test guest session creation, upload a small text-based PDF, ask a question and check its page citation, end the guest session, and confirm a redeploy preserves the PostgreSQL and backend volume data.
+
+Guest mode does not require SMTP. If you want account registration and password recovery to work, configure the SMTP variables too; without them, email-based registration cannot complete. Add your Gemini key and secrets only in Railway's Variables dashboard, never in GitHub. Set Railway spending controls and monitor Gemini API quota; Railway hosting and Gemini usage are separate costs.
+
 ## Test
 
-GitHub Actions runs the backend tests and frontend production build on pushes and pull requests. The Python requirements are pinned to the versions tested by the project. To run the backend unit and API tests locally:
+GitHub Actions runs the backend tests on Python 3.10 and 3.11, the frontend production build, and both production Docker image builds on pushes and pull requests. The Python requirements are pinned to the versions tested by the project. To run the backend unit and API tests locally:
 
 ```powershell
 cd backend

@@ -78,7 +78,7 @@ class Settings:
     GUEST_QUERY_WINDOW_SECONDS = int(
         os.getenv("GUEST_QUERY_WINDOW_SECONDS", "3600")
     )
-    UPLOAD_DIR = "./uploads"
+    UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
     CHUNK_SIZE = 1000
     CHUNK_OVERLAP = 150
     TOP_K = 5
