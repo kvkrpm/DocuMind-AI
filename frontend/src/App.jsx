@@ -19,6 +19,7 @@ export default function App() {
   const [chat, setChat] = useState([])
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
   const [token, setToken] = useState(
     () => sessionStorage.getItem('access_token') || sessionStorage.getItem('guest_session_token'),
   )
@@ -169,13 +170,19 @@ export default function App() {
     const file = event.target.files[0]
     if (!file) return
     setUploading(true)
+    setUploadError('')
     const formData = new FormData()
     formData.append('file', file)
     try {
       await api.post('/api/documents/upload', formData)
       await fetchDocs()
     } catch (err) {
-      alert(err.response?.data?.detail || err.message)
+      setUploadError(
+        err.response?.data?.detail ||
+        (err.message === 'Network Error'
+          ? 'Could not reach the server. Check your connection and try again.'
+          : err.message),
+      )
     } finally {
       setUploading(false)
       event.target.value = ''
@@ -365,8 +372,8 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 text-zinc-900 flex">
-      <div className="w-[360px] bg-white border-r p-5 flex flex-col">
+    <div className="min-h-screen bg-zinc-50 text-zinc-900 flex flex-col md:flex-row md:h-screen">
+      <div className="w-full md:w-[360px] bg-white border-b md:border-b-0 md:border-r p-4 md:p-5 flex flex-col md:shrink-0 md:min-h-0">
         <div className="flex items-start justify-between gap-2">
           <div>
             <h1 className="text-xl font-bold mb-1">📄 DocuMind AI</h1>
@@ -378,19 +385,20 @@ export default function App() {
           </div>
           <button
             onClick={isGuest ? endGuestSession : logOut}
-            className="text-xs text-zinc-600 underline"
+            className="shrink-0 whitespace-nowrap text-xs text-zinc-600 underline"
           >
             {isGuest ? 'End guest session' : 'Sign out'}
           </button>
         </div>
 
         {authError && <p role="alert" className="text-xs text-red-600 mb-2">{authError}</p>}
-        <label className="border-2 border-dashed rounded-xl p-6 text-center cursor-pointer hover:bg-zinc-50 mb-4">
+        {uploadError && <p role="alert" className="text-xs text-red-600 mb-2">{uploadError}</p>}
+        <label className="border-2 border-dashed rounded-xl p-4 md:p-6 text-center cursor-pointer hover:bg-zinc-50 mb-4">
           <input type="file" accept=".pdf" hidden onChange={handleUpload} />
           <div className="text-sm font-medium">{uploading ? 'Uploading...' : 'Click to upload PDF'}</div>
         </label>
 
-        <div className="flex-1 overflow-y-auto space-y-2">
+        <div className="flex-1 min-h-0 max-h-48 md:max-h-none overflow-y-auto space-y-2">
           {docs.map((doc) => (
             <div key={doc.id} className="border rounded-lg p-3 text-sm">
               <div className="font-medium truncate">{doc.name}</div>
@@ -403,8 +411,8 @@ export default function App() {
         <div className="text-[11px] text-zinc-400 mt-4">FastAPI • LangChain • ChromaDB • Gemini</div>
       </div>
 
-      <div className="flex-1 flex flex-col">
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div className="flex-1 flex flex-col min-h-[65vh] md:min-h-0">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 space-y-4">
           {chat.length === 0 && (
             <div className="max-w-2xl mx-auto mt-20 text-center">
               <h2 className="text-2xl font-semibold">Ask anything about your documents</h2>
@@ -419,7 +427,7 @@ export default function App() {
           )}
           {chat.map((message, index) => (
             <div key={index} className={`max-w-3xl ${message.role === 'user' ? 'ml-auto bg-black text-white' : 'bg-white border'} rounded-2xl p-4`}>
-              <div className="whitespace-pre-wrap text-sm leading-relaxed">{message.text}</div>
+              <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">{message.text}</div>
               {message.sources?.length > 0 && (
                 <div className="mt-3 border-t pt-3">
                   <div className="text-xs font-semibold mb-2">Sources ({message.sources.length})</div>
@@ -439,16 +447,16 @@ export default function App() {
           {loading && <div className="text-sm text-zinc-400">Thinking...</div>}
         </div>
 
-        <div className="border-t bg-white p-4">
-          <div className="max-w-3xl mx-auto flex gap-2">
+        <div className="border-t bg-white p-3 md:p-4">
+          <div className="max-w-3xl mx-auto flex w-full gap-2">
             <input
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
               onKeyDown={(event) => event.key === 'Enter' && ask()}
               placeholder="Ask a question about your PDFs..."
-              className="flex-1 border rounded-full px-4 py-3 text-sm outline-none"
+              className="flex-1 min-w-0 border rounded-full px-4 py-3 text-sm outline-none"
             />
-            <button onClick={ask} disabled={loading} className="bg-black text-white rounded-full px-6 text-sm font-medium">Ask</button>
+            <button onClick={ask} disabled={loading} className="shrink-0 bg-black text-white rounded-full px-4 md:px-6 text-sm font-medium">Ask</button>
           </div>
         </div>
       </div>
