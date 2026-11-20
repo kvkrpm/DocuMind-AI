@@ -239,7 +239,7 @@ export default function App() {
     return (
       <main className="min-h-screen bg-zinc-50 flex items-center justify-center p-4">
         <form onSubmit={handleAuth} className="w-full max-w-sm bg-white border rounded-2xl p-6">
-          <h1 className="text-xl font-bold">📄 RAG QA Platform</h1>
+          <h1 className="text-xl font-bold">📄 DocuMind AI</h1>
           <p className="text-sm text-zinc-500 mt-1">
             {authMode === 'register'
               ? 'Create an account to keep your documents private.'
@@ -369,7 +369,7 @@ export default function App() {
       <div className="w-[360px] bg-white border-r p-5 flex flex-col">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <h1 className="text-xl font-bold mb-1">📄 RAG QA Platform</h1>
+            <h1 className="text-xl font-bold mb-1">📄 DocuMind AI</h1>
             <p className="text-xs text-zinc-500 mb-4">
               {isGuest
                 ? 'Temporary guest workspace; expires automatically. Access ends when this tab closes.'

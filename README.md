@@ -1,6 +1,10 @@
-# Document QA RAG Platform
+# DocuMind AI
 
 Upload text-based PDFs, ask questions about their contents, and get answers with document and page citations.
+
+## Live Demo
+
+<https://documind-ai-production-dfd1e8ac.up.railway.app/>
 
 ## Requirements
 
