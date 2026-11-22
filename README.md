@@ -15,7 +15,7 @@ Upload text-based PDFs, ask questions about their contents, and get answers with
 
 ## Configure
 
-Create a `.env` file in the project root using `.env.example` as a template. Set `GOOGLE_API_KEY`, replace `POSTGRES_PASSWORD` with a strong URL-safe password, set `AUTH_SECRET_KEY` to a random value of at least 32 characters, and configure SMTP before running Docker Compose. Do not commit `.env`.
+Create a `.env` file in the project root using `.env.example` as a template. Set `GOOGLE_API_KEY`, replace `POSTGRES_PASSWORD` with a strong URL-safe password, and set `AUTH_SECRET_KEY` to a random value of at least 32 characters. Do not commit `.env`.
 
 For local backend development, copy the required settings into `backend/.env`. Set `AUTH_SECRET_KEY` there as well; the backend uses SQLite by default, and `DATABASE_URL` can select another database. If no auth key is set in local development, the app generates a temporary key and existing sessions will stop working after a restart. The root `.env` is used by Docker Compose.
 
@@ -29,6 +29,8 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 Use the first generated value for `AUTH_SECRET_KEY` and the second for `POSTGRES_PASSWORD`. URL-safe database passwords avoid connection-string parsing problems.
 
 Accounts are created through the app’s registration screen. Passwords must contain at least 12 characters. Access tokens expire after 12 hours by default; configure `ACCESS_TOKEN_EXPIRE_MINUTES` to change this. Set `CORS_ORIGINS` to a comma-separated list of trusted frontend origins when deploying.
+
+Registration sends a verification email when SMTP is configured and delivery succeeds. If SMTP is not configured or email delivery fails, a new account is automatically verified so the user can sign in. Set `AUTO_VERIFY_EMAIL=true` to always verify accounts immediately; the app still attempts to send verification emails whenever SMTP is configured. Automatic verification does not prove email ownership, so use it only where that tradeoff is acceptable.
 
 Registration is limited to 5 attempts per client IP per hour, and login to 10 attempts per client IP per minute. Configure `AUTH_REGISTER_LIMIT`, `AUTH_REGISTER_WINDOW_SECONDS`, `AUTH_LOGIN_LIMIT`, and `AUTH_LOGIN_WINDOW_SECONDS` to adjust these limits. Counters are stored in the shared metadata database. If running behind a reverse proxy, configure the server to trust forwarded client IPs only from that proxy so limits apply to the real client address.
 
@@ -47,6 +49,9 @@ cd backend
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
+notepad .env
+# Add GOOGLE_API_KEY, AUTH_SECRET_KEY (32+ characters), and AUTO_VERIFY_EMAIL=true.
+# SQLite is used by default; SMTP is optional.
 python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
@@ -135,7 +140,7 @@ The tests do not call Gemini or require an API key. Uploading and querying docum
 | Method | Endpoint | Description |
 | --- | --- | --- |
 | `GET` | `/health` | Backend health and configured model |
-| `POST` | `/api/auth/register` | Create an account and send an email-verification link |
+| `POST` | `/api/auth/register` | Create an account and send an email-verification link when SMTP succeeds |
 | `POST` | `/api/auth/login` | Sign in and receive an access token |
 | `GET` | `/api/auth/me` | Return the signed-in account |
 | `POST` | `/api/auth/verify-email` | Verify an email using the one-time token |

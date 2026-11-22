@@ -30,6 +30,7 @@ class Settings:
     DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./docs_meta.db")
     AUTH_SECRET_KEY = auth_secret_key
     ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "720"))
+    AUTO_VERIFY_EMAIL = os.getenv("AUTO_VERIFY_EMAIL", "false").strip().lower() == "true"
     AUTH_REGISTER_LIMIT = int(os.getenv("AUTH_REGISTER_LIMIT", "5"))
     AUTH_REGISTER_WINDOW_SECONDS = int(
         os.getenv("AUTH_REGISTER_WINDOW_SECONDS", "3600")

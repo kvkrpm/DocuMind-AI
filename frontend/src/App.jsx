@@ -129,7 +129,7 @@ export default function App() {
         const res = await api.post(endpoint, { email, password })
         if (authMode === 'register') {
           setEmail(res.data.user.email)
-          setAuthMode('verify_pending')
+          setAuthMode(res.data.user.email_verified ? 'login' : 'verify_pending')
           setAuthNotice(res.data.message)
         } else {
           sessionStorage.removeItem('guest_session_token')

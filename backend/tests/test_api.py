@@ -116,6 +116,7 @@ class DocumentApiTests(unittest.TestCase):
 
     def test_auth_registers_logs_in_and_rejects_duplicate_accounts(self):
         with (
+            patch.object(settings, "AUTO_VERIFY_EMAIL", False),
             patch.object(main.email_service, "is_configured", return_value=True),
             patch.object(main.email_service, "send_email") as send_email,
         ):
@@ -130,6 +131,7 @@ class DocumentApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201)
         auth_data = response.json()
         self.assertEqual(auth_data["user"]["email"], "new.user@example.com")
+        self.assertFalse(auth_data["user"]["email_verified"])
         self.assertNotIn("access_token", auth_data)
         verification_token = re.search(
             r"verify_token=([A-Za-z0-9_-]+)",
@@ -183,6 +185,104 @@ class DocumentApiTests(unittest.TestCase):
         self.assertEqual(reused_link.status_code, 400)
         self.assertEqual(login.status_code, 200)
         self.assertEqual(invalid_login.status_code, 401)
+
+    def test_registration_auto_verifies_when_smtp_is_not_configured(self):
+        with (
+            patch.object(settings, "AUTO_VERIFY_EMAIL", False),
+            patch.object(main.email_service, "is_configured", return_value=False),
+            patch.object(main.email_service, "send_email") as send_email,
+        ):
+            response = self.client.post(
+                "/api/auth/register",
+                json={
+                    "email": "no.smtp@example.com",
+                    "password": "a-long-test-password",
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIn("verified", response.json()["message"].lower())
+        self.assertTrue(response.json()["user"]["email_verified"])
+        self.assertTrue(
+            self.document_store.get_user_by_email("no.smtp@example.com")[
+                "email_verified"
+            ]
+        )
+        send_email.assert_not_called()
+        login = self.client.post(
+            "/api/auth/login",
+            json={
+                "email": "no.smtp@example.com",
+                "password": "a-long-test-password",
+            },
+        )
+        self.assertEqual(login.status_code, 200)
+
+    def test_registration_auto_verifies_when_smtp_send_fails(self):
+        with (
+            patch.object(settings, "AUTO_VERIFY_EMAIL", False),
+            patch.object(main.email_service, "is_configured", return_value=True),
+            patch.object(
+                main.email_service,
+                "send_email",
+                side_effect=OSError("SMTP connection refused"),
+            ),
+        ):
+            response = self.client.post(
+                "/api/auth/register",
+                json={
+                    "email": "smtp.failed@example.com",
+                    "password": "a-long-test-password",
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(response.json()["user"]["email_verified"])
+        self.assertTrue(
+            self.document_store.get_user_by_email("smtp.failed@example.com")[
+                "email_verified"
+            ]
+        )
+        login = self.client.post(
+            "/api/auth/login",
+            json={
+                "email": "smtp.failed@example.com",
+                "password": "a-long-test-password",
+            },
+        )
+        self.assertEqual(login.status_code, 200)
+
+    def test_auto_verify_setting_still_sends_configured_verification_email(self):
+        with (
+            patch.object(settings, "AUTO_VERIFY_EMAIL", True),
+            patch.object(main.email_service, "is_configured", return_value=True),
+            patch.object(main.email_service, "send_email") as send_email,
+        ):
+            response = self.client.post(
+                "/api/auth/register",
+                json={
+                    "email": "auto.verified@example.com",
+                    "password": "a-long-test-password",
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIn("verified", response.json()["message"].lower())
+        self.assertTrue(response.json()["user"]["email_verified"])
+        send_email.assert_called_once()
+        self.assertTrue(
+            self.document_store.get_user_by_email("auto.verified@example.com")[
+                "email_verified"
+            ]
+        )
+        login = self.client.post(
+            "/api/auth/login",
+            json={
+                "email": "auto.verified@example.com",
+                "password": "a-long-test-password",
+            },
+        )
+        self.assertEqual(login.status_code, 200)
 
     def test_registration_rate_limit_returns_retry_after(self):
         with (

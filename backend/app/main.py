@@ -36,6 +36,10 @@ from app.models.schemas import (
 logger = logging.getLogger(__name__)
 
 
+class EmailDeliveryError(RuntimeError):
+    pass
+
+
 def delete_guest_documents(guest_id: str) -> None:
     for document in document_store.list_documents(guest_id):
         rag_service.delete_doc(document["id"])
@@ -206,15 +210,18 @@ def create_email_action(user: dict, purpose: str) -> str:
         expires_at,
     )
     link = f"{settings.FRONTEND_URL}/#{query_key}={token}"
-    email_service.send_email(
-        user["email"],
-        subject,
-        (
-            f"Use the following link to {action}:\n\n{link}\n\n"
-            f"This link expires in {expiry_minutes} minutes and can only be used once. "
-            "If you did not request this, you can ignore this message."
-        ),
-    )
+    try:
+        email_service.send_email(
+            user["email"],
+            subject,
+            (
+                f"Use the following link to {action}:\n\n{link}\n\n"
+                f"This link expires in {expiry_minutes} minutes and can only be used once. "
+                "If you did not request this, you can ignore this message."
+            ),
+        )
+    except Exception as e:
+        raise EmailDeliveryError("Could not deliver email") from e
     return token
 
 
@@ -235,11 +242,6 @@ def register(req: AuthRequest, request: Request):
         settings.AUTH_REGISTER_LIMIT,
         settings.AUTH_REGISTER_WINDOW_SECONDS,
     )
-    if not email_service.is_configured():
-        raise HTTPException(
-            503,
-            "Email delivery is not configured. Set SMTP_HOST and SMTP_FROM_EMAIL.",
-        )
     try:
         user = document_store.create_user(
             req.email,
@@ -247,18 +249,53 @@ def register(req: AuthRequest, request: Request):
         )
     except IntegrityError as e:
         raise HTTPException(409, "An account with this email already exists") from e
-    try:
-        create_email_action(user, "verify_email")
-    except Exception as e:
-        logger.exception("Could not send account verification email")
-        raise HTTPException(
-            503,
-            "Account created, but the verification email could not be sent. "
-            "Check SMTP settings and request another verification email.",
-        ) from e
+    email_delivery_failed = not email_service.is_configured()
+    email_sent = False
+    if settings.AUTO_VERIFY_EMAIL:
+        user = document_store.mark_email_verified(user["id"])
+        if user is None:
+            raise RuntimeError("Newly created user could not be verified")
+
+    if email_delivery_failed:
+        logger.warning(
+            "SMTP is not configured; automatically verifying new user %s",
+            user["id"],
+        )
+    else:
+        try:
+            create_email_action(user, "verify_email")
+        except EmailDeliveryError:
+            email_delivery_failed = True
+            logger.exception(
+                "Could not send account verification email; automatically verifying user %s",
+                user["id"],
+            )
+        else:
+            email_sent = True
+
+    if email_delivery_failed and not user["email_verified"]:
+        user = document_store.mark_email_verified(user["id"])
+        if user is None:
+            raise RuntimeError("Newly created user could not be verified")
+
+    if email_delivery_failed:
+        message = (
+            "Account created and verified because email could not be delivered. "
+            "You can sign in now."
+        )
+    elif settings.AUTO_VERIFY_EMAIL:
+        message = "Account created and verified. You can sign in now."
+        if email_sent:
+            message += " A verification email was also sent."
+    else:
+        message = "Account created. Check your email for the verification link."
     return {
-        "message": "Account created. Check your email for the verification link.",
-        "user": {"id": user["id"], "email": user["email"]},
+        "message": message,
+        "user": {
+            "id": user["id"],
+            "email": user["email"],
+            "email_verified": user["email_verified"],
+        },
     }
 
 
