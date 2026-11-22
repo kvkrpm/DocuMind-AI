@@ -12,3 +12,5 @@ langchain-openai==1.7.2
 sqlalchemy==2.0.57
 psycopg2-binary==2.9.13
 PyJWT==2.15.1
+rank-bm25
+flashrank

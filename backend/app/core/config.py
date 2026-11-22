@@ -82,7 +82,7 @@ class Settings:
     UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
     CHUNK_SIZE = 1000
     CHUNK_OVERLAP = 150
-    TOP_K = 5
+    TOP_K = 4
 
 settings = Settings()
 if settings.ACCESS_TOKEN_EXPIRE_MINUTES < 1:

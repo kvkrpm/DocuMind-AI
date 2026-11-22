@@ -1,0 +1,223 @@
+{
+  "description": "Offline retrieval fixtures for a fictional Northwind Services handbook. Dense rankings are fixed test fixtures so evaluation does not call an embedding API.",
+  "chunks": [
+    {
+      "id": "travel-meals",
+      "document_name": "employee-travel-policy.pdf",
+      "page_number": 3,
+      "text": "Employees may claim up to $45 per day for meals during approved business travel. Alcohol is not reimbursable, and itemized receipts are required for each meal."
+    },
+    {
+      "id": "travel-mileage",
+      "document_name": "employee-travel-policy.pdf",
+      "page_number": 4,
+      "text": "Use a personal vehicle only when approved by a manager. Mileage is reimbursed at the current finance rate, excluding ordinary travel between home and the office."
+    },
+    {
+      "id": "fin-ap-204",
+      "document_name": "finance-procurement-controls.pdf",
+      "page_number": 2,
+      "text": "FIN-AP-204: Purchase orders above $5,000 require approval from two managers before the supplier is contacted. Orders at or below $5,000 require one manager approval."
+    },
+    {
+      "id": "fin-invoice",
+      "document_name": "finance-procurement-controls.pdf",
+      "page_number": 5,
+      "text": "Accounts payable matches each supplier invoice to its purchase order and receipt. Disputed invoices are placed on hold until the requester confirms delivery."
+    },
+    {
+      "id": "security-sso",
+      "document_name": "identity-and-access-standard.pdf",
+      "page_number": 6,
+      "text": "Single sign-on (SSO) sessions require a fresh multi-factor authentication (MFA) challenge every 12 hours, and immediately after a sign-in from an unrecognized device."
+    },
+    {
+      "id": "security-password",
+      "document_name": "identity-and-access-standard.pdf",
+      "page_number": 3,
+      "text": "Passwords must contain at least 14 characters. Shared accounts are prohibited, and access credentials must never be sent through email or chat."
+    },
+    {
+      "id": "ops-retention",
+      "document_name": "platform-operations-runbook.pdf",
+      "page_number": 11,
+      "text": "Application and access logs are retained for 90 days in the standard tier. Security incident records are exported to the protected archive before the online retention window expires."
+    },
+    {
+      "id": "ops-backup",
+      "document_name": "platform-operations-runbook.pdf",
+      "page_number": 8,
+      "text": "Production databases receive an encrypted backup every 24 hours. The on-call engineer verifies the backup job each morning and performs a restore test once per quarter."
+    },
+    {
+      "id": "support-sla-2",
+      "document_name": "customer-support-handbook.pdf",
+      "page_number": 2,
+      "text": "SLA-2 tickets receive an initial human response within 2 business hours. The response target is not a resolution deadline; urgent service outages use the incident process."
+    },
+    {
+      "id": "support-uptime",
+      "document_name": "customer-support-handbook.pdf",
+      "page_number": 7,
+      "text": "The support team publishes a monthly service availability summary. Scheduled maintenance announced at least 48 hours in advance is excluded from the availability calculation."
+    },
+    {
+      "id": "hr-pto",
+      "document_name": "people-operations-guide.pdf",
+      "page_number": 9,
+      "text": "Submit planned paid time off (PTO) at least 10 business days before the first day away. Your manager must approve the request in the HR portal before travel is booked."
+    },
+    {
+      "id": "hr-leave",
+      "document_name": "people-operations-guide.pdf",
+      "page_number": 10,
+      "text": "Unused annual leave may carry over up to 5 days into the next calendar year. Local statutory leave rules take precedence where they provide a greater entitlement."
+    },
+    {
+      "id": "edge-410",
+      "document_name": "edge-device-maintenance.pdf",
+      "page_number": 4,
+      "text": "EDGE-410 field units require their air intake filters to be replaced every 1,800 operating hours. Record the replacement date and meter reading in the asset log."
+    },
+    {
+      "id": "edge-420",
+      "document_name": "edge-device-maintenance.pdf",
+      "page_number": 6,
+      "text": "EDGE-420 battery packs are inspected every six months. Remove a pack from service if its measured capacity is below 80 percent of its original rating."
+    },
+    {
+      "id": "dlp-retention",
+      "document_name": "information-protection-policy.pdf",
+      "page_number": 5,
+      "text": "DLP quarantine messages are kept for 30 days. A designated security reviewer may release a message after verifying the recipient and business purpose."
+    },
+    {
+      "id": "data-classification",
+      "document_name": "information-protection-policy.pdf",
+      "page_number": 2,
+      "text": "Confidential information may be shared only with approved recipients and must use the company-managed encrypted storage service."
+    },
+    {
+      "id": "billing-refund",
+      "document_name": "billing-and-credits-guide.pdf",
+      "page_number": 4,
+      "text": "When a customer is billed twice for one order, support verifies both charges and issues a credit within 5 business days. The confirmation is sent to the billing contact on file."
+    },
+    {
+      "id": "billing-tax",
+      "document_name": "billing-and-credits-guide.pdf",
+      "page_number": 6,
+      "text": "Tax amounts are calculated from the service address stored on the account at invoice time. Customers should update a changed address before the next billing cycle."
+    },
+    {
+      "id": "api-429",
+      "document_name": "developer-api-reference.pdf",
+      "page_number": 13,
+      "text": "API-429 indicates that a client exceeded its request rate limit. Pause requests for the Retry-After interval when present, then resume with exponential backoff."
+    },
+    {
+      "id": "api-auth",
+      "document_name": "developer-api-reference.pdf",
+      "page_number": 4,
+      "text": "OAuth access tokens expire after 60 minutes. Applications should request a replacement token using the refresh flow and must not store client secrets in browser code."
+    },
+    {
+      "id": "safety-evacuation",
+      "document_name": "workplace-safety-plan.pdf",
+      "page_number": 3,
+      "text": "During an evacuation, use the nearest marked exit and report to the assembly point in the east parking area. Do not re-enter until the safety lead gives authorization."
+    },
+    {
+      "id": "shipping-rma",
+      "document_name": "returns-and-logistics.pdf",
+      "page_number": 2,
+      "text": "An approved RMA number must be shown on the return label. Ship the item within 30 calendar days of receiving the RMA or request a new authorization."
+    },
+    {
+      "id": "shipping-damage",
+      "document_name": "returns-and-logistics.pdf",
+      "page_number": 5,
+      "text": "Photograph any visible transit damage before removing the packaging. Send the images and tracking number to the logistics desk within two business days."
+    },
+    {
+      "id": "records-legal-hold",
+      "document_name": "records-management-standard.pdf",
+      "page_number": 7,
+      "text": "A legal hold suspends routine deletion for the named records and custodians. The records manager notifies affected teams when a hold begins or is released."
+    }
+  ],
+  "cases": [
+    {
+      "question": "How much can an employee spend on meals each day when traveling for work?",
+      "answer": "Up to $45 per day, with itemized receipts.",
+      "relevant_chunk_ids": ["travel-meals"],
+      "dense_ranked_ids": ["travel-meals", "travel-mileage", "fin-invoice", "billing-tax", "hr-pto", "billing-refund", "support-uptime", "ops-backup", "shipping-damage", "fin-ap-204"]
+    },
+    {
+      "question": "What does FIN-AP-204 say about purchase orders above $5,000?",
+      "answer": "They require approval from two managers before contacting the supplier.",
+      "relevant_chunk_ids": ["fin-ap-204"],
+      "dense_ranked_ids": ["fin-invoice", "travel-mileage", "billing-refund", "fin-ap-204", "billing-tax", "hr-leave", "ops-retention", "shipping-rma", "travel-meals", "records-legal-hold"]
+    },
+    {
+      "question": "How often does an SSO user need to complete an MFA challenge?",
+      "answer": "Every 12 hours, and after a sign-in from an unrecognized device.",
+      "relevant_chunk_ids": ["security-sso"],
+      "dense_ranked_ids": ["security-password", "data-classification", "api-auth", "security-sso", "ops-retention", "support-uptime", "hr-leave", "records-legal-hold", "dlp-retention", "api-429"]
+    },
+    {
+      "question": "For how long can we look up ordinary application and access logs?",
+      "answer": "The standard online retention period is 90 days.",
+      "relevant_chunk_ids": ["ops-retention"],
+      "dense_ranked_ids": ["ops-backup", "records-legal-hold", "security-password", "ops-retention", "api-auth", "dlp-retention", "data-classification", "shipping-damage", "billing-tax", "support-uptime"]
+    },
+    {
+      "question": "What is the initial response target for an SLA-2 ticket?",
+      "answer": "An initial human response within 2 business hours.",
+      "relevant_chunk_ids": ["support-sla-2"],
+      "dense_ranked_ids": ["support-uptime", "billing-refund", "hr-pto", "shipping-damage", "support-sla-2", "travel-mileage", "fin-invoice", "ops-retention", "billing-tax", "security-sso"]
+    },
+    {
+      "question": "How far ahead should I request planned paid leave?",
+      "answer": "At least 10 business days before the first day away.",
+      "relevant_chunk_ids": ["hr-pto"],
+      "dense_ranked_ids": ["hr-leave", "support-sla-2", "travel-meals", "hr-pto", "billing-refund", "shipping-rma", "security-password", "fin-ap-204", "records-legal-hold", "safety-evacuation"]
+    },
+    {
+      "question": "When should the filter in an EDGE-410 be changed?",
+      "answer": "Every 1,800 operating hours.",
+      "relevant_chunk_ids": ["edge-410"],
+      "dense_ranked_ids": ["edge-420", "ops-backup", "shipping-damage", "edge-410", "travel-mileage", "fin-invoice", "billing-tax", "records-legal-hold", "security-password", "support-uptime"]
+    },
+    {
+      "question": "What is the retention period for DLP quarantine messages?",
+      "answer": "30 days.",
+      "relevant_chunk_ids": ["dlp-retention"],
+      "dense_ranked_ids": ["data-classification", "security-password", "records-legal-hold", "dlp-retention", "api-auth", "ops-retention", "billing-tax", "shipping-rma", "security-sso", "travel-meals"]
+    },
+    {
+      "question": "What happens if a customer is charged twice for one order?",
+      "answer": "After verifying both charges, support issues a credit within 5 business days.",
+      "relevant_chunk_ids": ["billing-refund"],
+      "dense_ranked_ids": ["fin-invoice", "billing-tax", "travel-meals", "billing-refund", "support-sla-2", "shipping-rma", "hr-leave", "fin-ap-204", "travel-mileage", "ops-retention"]
+    },
+    {
+      "question": "How should a client respond to API-429, and what does Retry-After mean?",
+      "answer": "Wait for the Retry-After interval if present, then retry with exponential backoff.",
+      "relevant_chunk_ids": ["api-429"],
+      "dense_ranked_ids": ["api-auth", "security-sso", "ops-retention", "api-429", "support-uptime", "data-classification", "security-password", "records-legal-hold", "billing-tax", "edge-420"]
+    },
+    {
+      "question": "How do operations make sure a database can be recovered?",
+      "answer": "Back it up every 24 hours, verify the job daily, and perform a restore test quarterly.",
+      "relevant_chunk_ids": ["ops-backup"],
+      "dense_ranked_ids": ["ops-retention", "records-legal-hold", "security-password", "ops-backup", "data-classification", "api-auth", "billing-tax", "safety-evacuation", "travel-mileage", "shipping-damage"]
+    },
+    {
+      "question": "After an RMA is issued, how long do I have to send the item?",
+      "answer": "Ship it within 30 calendar days of receiving the RMA.",
+      "relevant_chunk_ids": ["shipping-rma"],
+      "dense_ranked_ids": ["shipping-damage", "billing-refund", "support-sla-2", "shipping-rma", "travel-mileage", "hr-pto", "fin-invoice", "ops-backup", "records-legal-hold", "billing-tax"]
+    }
+  ]
+}
