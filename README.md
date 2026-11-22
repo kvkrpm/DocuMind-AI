@@ -128,12 +128,26 @@ The tests do not call Gemini or require an API key. Uploading and querying docum
 
 - **PDF extraction:** `pypdf` extracts page text and preserves page numbers. Scanned/image-only PDFs need OCR and are not supported.
 - **Chunking:** LangChain's recursive text splitter creates overlapping chunks and attaches document and page metadata.
-- **Embeddings and retrieval:** Gemini embeddings are stored in a persistent ChromaDB collection. Queries retrieve the five nearest chunks by cosine similarity.
+- **Embeddings and retrieval:** `models/gemini-embedding-001` vectors are stored in ChromaDB. Each query searches only the current account or guest workspace: ChromaDB returns the top 10 dense vector matches, while `BM25Okapi` searches that workspace's indexed chunk text for the top 10 lexical matches. Reciprocal Rank Fusion (RRF, `k=60`) merges them into up to 12 unique candidates, which a lazy-loaded FlashRank `ms-marco-TinyBERT-L-2-v2` cross-encoder reranks to select the top 4. The reranker uses ONNX Runtime and adds no PyTorch dependency; its measured process footprint was about 71 MiB in the local test environment. If reranking fails, the service falls back to the RRF ranking.
 - **Answers:** Gemini receives the retrieved passages and a grounded prompt; the API returns the answer, source citations, and a sufficient-context flag.
 - **Persistence:** PostgreSQL stores document metadata in Docker Compose; local backend development defaults to SQLite. ChromaDB vectors and uploaded files are stored separately. With Docker Compose they use named volumes.
 - **Accounts and privacy:** Each account has a separate document list and can query or delete only its own documents. Passwords are stored as salted scrypt hashes; API access uses expiring bearer tokens.
 - **Guest privacy:** Guest workspaces use separate bearer tokens and ownership IDs. They expire after the configured lifetime and are removed by background cleanup; guests can also delete their workspace immediately.
 - **Deployment:** The Compose stack uses non-reload backend runtime, non-root backend container, same-origin API proxying, and database-backed health checks. TLS must be terminated by a trusted HTTPS reverse proxy before exposing the app publicly.
+
+### Retrieval Evaluation Benchmark
+
+The offline benchmark compares the three retrieval pipelines on 12 semantic and exact-keyword test questions:
+
+| Pipeline | Recall@4 (Hit Rate) | MRR@4 | Avg latency (ms/query) |
+|---|---:|---:|---:|
+| Dense Vector Only | 0.917 | 0.292 | 0.024 |
+| Hybrid (BM25 + Vector RRF) | 0.917 | 0.708 | 3.083 |
+| Hybrid + TinyBERT Reranker | 1.000 | 1.000 | 19.678 |
+
+Recall@4 is reported as hit rate: the fraction of questions with at least one relevant chunk in the first four results. MRR@4 is the mean reciprocal rank of the first relevant chunk, with misses scored as zero.
+
+This is an API-free benchmark. Dense results are fixed rankings in `sample_dataset.json`, not live Gemini/Chroma measurements; latency covers local ranking only and excludes embedding and answer-generation calls. FlashRank is loaded once and kept out of per-query latency via warm-up. For air-gapped runs, pre-populate the configured FlashRank cache; an uncached model is downloaded on first use.
 
 ## API
 

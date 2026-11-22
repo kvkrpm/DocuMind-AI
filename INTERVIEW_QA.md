@@ -6,7 +6,7 @@ It is a document question-answering application based on retrieval-augmented gen
 
 ## 2. What is the architecture?
 
-The React frontend calls a FastAPI backend. The backend extracts PDF text with pypdf, splits it into overlapping chunks, gets Gemini embeddings, and stores vectors and chunk metadata in ChromaDB. For a question, it retrieves relevant chunks and asks Gemini to answer from that context. SQLAlchemy stores users, document metadata, authentication tokens, and authentication rate-limit counters in SQLite locally or PostgreSQL in Docker Compose. SMTP sends verification and password-reset links.
+The React frontend calls a FastAPI backend. The backend extracts PDF text with pypdf, splits it into overlapping chunks, gets Gemini embeddings, and stores vectors and chunk metadata in ChromaDB. For a question, it runs workspace-scoped dense and BM25 retrieval, fuses the results with RRF, and reranks the candidates with FlashRank before asking Gemini to answer from the top passages. SQLAlchemy stores users, document metadata, authentication tokens, and authentication rate-limit counters in SQLite locally or PostgreSQL in Docker Compose. SMTP sends verification and password-reset links.
 
 ## 3. What is the end-to-end ingestion flow?
 
@@ -38,7 +38,7 @@ ChromaDB stores the vectors, chunk text, and retrieval metadata in a persistent 
 
 ## 10. How does retrieval work?
 
-The backend embeds the question and asks ChromaDB for up to five nearest chunks (`TOP_K=5`). If document IDs are supplied, retrieval filters by them. Before querying ChromaDB, the API checks that every requested document belongs to the authenticated user.
+The backend embeds the question and asks ChromaDB for up to 10 nearest chunks. It also runs BM25 lexical search over the indexed chunk text, then fuses the rankings with Reciprocal Rank Fusion (RRF, `k=60`). The top 12 unique candidates are passed to FlashRank, which selects the top four. Dense search and the BM25 corpus are both restricted to the current workspace's allowed document IDs; the API checks ownership before querying.
 
 ## 11. How is the final answer grounded?
 
@@ -48,9 +48,9 @@ Retrieved passages, document names, and page numbers are added to a prompt that 
 
 If retrieval returns no chunks, the RAG service returns a standard not-enough-information answer, no citations, and a false context flag without calling the chat model. A question with no owned documents receives the same response from the API.
 
-## 13. What does `top-k = 5` mean?
+## 13. What does top-4 mean?
 
-It is the maximum number of nearest chunks requested for a query, not a similarity threshold. Fewer than five may be returned when fewer eligible chunks exist.
+It is the maximum number of reranked chunks supplied to the answer prompt and Sources panel, not a similarity threshold. Fewer than four may be returned when there are fewer eligible candidates.
 
 ## 14. What is the difference between ChromaDB and PostgreSQL/SQLite?
 
@@ -102,6 +102,36 @@ The backend `unittest` suite covers account registration/login, email verificati
 
 Scanned-PDF OCR is intentionally out of scope; only PDFs with extractable text are supported. Direct Python dependencies are pinned, and CI checks the backend suite and frontend production build. Docker/PostgreSQL startup and live SMTP/Gemini calls have not been verified in this environment. Production deployment still requires HTTPS, a persistent random `AUTH_SECRET_KEY`, real SMTP and Gemini credentials, correct proxy configuration, backups, and operational/abuse-control review.
 
+## 25. Why combine BM25 lexical search with dense embeddings?
+
+Dense vector search finds semantically related passages even when the query and source use different wording, but semantic similarity can be weak for exact identifiers, acronyms, part numbers, and rare keywords. BM25 scores literal query-token overlap, making it useful for lookups such as `FIN-AP-204` or `API-429`. RRF combines the two ranked lists using rank contributions (`1 / (60 + rank)`), so their scores need not share a scale. This improves lexical recall without discarding semantic matches.
+
+## 26. How does the two-stage search and TinyBERT reranker fit together?
+
+Stage one independently retrieves up to 10 dense matches from workspace-filtered ChromaDB and up to 10 BM25 matches from that workspace's chunks. RRF merges duplicates and limits the candidate pool to 12. Stage two applies FlashRank's `ms-marco-TinyBERT-L-2-v2` cross-encoder to score the question-candidate pairs and chooses up to four passages for Gemini and the UI.
+
+FlashRank runs through ONNX Runtime and is loaded lazily into a process-wide singleton. The measured local process RSS after model initialization was about 71 MiB; the dependency set has no PyTorch or Sentence-Transformers overhead. This is much lighter than a typical PyTorch cross-encoder and leaves substantially more room within a 512 MB cloud container budget, though total application memory still depends on ChromaDB, Python, and the deployment. If reranking fails, the service logs the error and returns the RRF ordering instead.
+
+## 27. How do we measure retrieval quality, and what improved?
+
+The offline dataset contains 12 Q&A cases with a mix of semantic questions and exact keyword, acronym, and ID lookups. The evaluation compares fixed dense rankings, hybrid BM25-plus-vector RRF, and hybrid retrieval with TinyBERT reranking. Recall@4 is reported as hit rate: whether at least one relevant chunk appears in the first four. MRR@4 averages the reciprocal rank of the first relevant chunk, with misses counted as zero.
+
+In the recorded benchmark, dense-only retrieval has Recall@4 `0.917` and MRR@4 `0.292`; hybrid RRF keeps Recall@4 at `0.917` and raises MRR@4 to `0.708`; reranking reaches `1.000` on both metrics. This is an API-free benchmark: dense rankings are fixed fixtures rather than live Gemini/Chroma results, and latency measures local retrieval/ranking only, excluding embeddings and answer generation. FlashRank initialization is warmed before per-query timing.
+
+## 28. What production deployment issues did we debug?
+
+### Railway private networking and Nginx DNS
+
+The frontend reaches the backend through Railway's private DNS name. Resolving a proxy upstream only when Nginx starts can leave a stale backend address after private-network changes. The Nginx template uses Railway's resolver (`[fd12::10]`) with a 30-second validity and a variable-backed `BACKEND_URL` so the target can be resolved dynamically. The configured private hostname must match the Railway backend service name.
+
+### Multipart uploads and proxy timeouts
+
+Multipart boundaries add bytes beyond the PDF itself, so an Nginx body limit equal to the backend's 10 MB PDF limit could reject an otherwise valid upload before FastAPI sees it. The frontend proxy allows 11 MB, leaving room for multipart overhead while the backend still enforces the file limit. Its API read and send timeouts are 300 seconds to accommodate larger PDF extraction and embedding requests; these proxy settings should be revisited alongside any backend upload-limit changes.
+
+### SMTP port 587 and registration fallback
+
+The documented Gmail path uses port 587 and STARTTLS. If the SMTP service is not configured or message delivery fails, the registration flow automatically verifies the new account and returns a notice so the user is not stranded by email delivery. This is an application-level fallback, not an automatic retry against a second SMTP port. `AUTO_VERIFY_EMAIL=true` can enable immediate verification explicitly, but that bypasses email ownership checks and should be used only when acceptable.
+
 ## Quick architecture summary
 
 ```text
@@ -111,7 +141,10 @@ Login → verified account → expiring bearer token → owner-checked document 
 PDF → pypdf text/page extraction → 1,000-character chunks (150 overlap)
     → Gemini gemini-embedding-001 → ChromaDB vector storage
 
-Question + owned document IDs → Gemini embedding → ChromaDB cosine search (top 5)
+Question + owned document IDs → Gemini embedding → ChromaDB dense search (top 10)
+                              + workspace-scoped BM25 lexical search (top 10)
+                              → RRF (k=60, up to 12 candidates)
+                              → FlashRank TinyBERT reranking (top 4)
                               → grounded prompt → Gemini gemini-3.6-flash
                               → cited answer
 
@@ -125,6 +158,8 @@ Metadata/authentication → SQLite locally / PostgreSQL in Docker
 - `backend/app/services/email_service.py` — SMTP delivery
 - `backend/app/services/pdf_service.py` — PDF extraction, validation, and chunking
 - `backend/app/services/rag_service.py` — Gemini models, ChromaDB indexing, retrieval, and answer generation
+- `backend/app/services/hybrid_retrieval.py` — BM25 ranking, RRF fusion, and lazy FlashRank reranking
+- `backend/eval/` — offline sample dataset, benchmark runner, and retrieval metrics report
 - `backend/app/services/document_store.py` — SQLAlchemy persistence, ownership, one-time tokens, and rate-limit counters
 - `backend/app/core/config.py` — models, database, auth, SMTP, and RAG configuration
 - `backend/tests/` — backend API, auth, SMTP, and RAG tests
