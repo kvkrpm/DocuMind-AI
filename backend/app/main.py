@@ -12,7 +12,7 @@ from pypdf.errors import PdfReadError
 from sqlalchemy.exc import IntegrityError
 from app.core.config import settings
 from app.services.pdf_service import validate_file, extract_pdf_with_pages, chunk_pages
-from app.services.rag_service import rag_service
+from app.services.rag_service import is_embedding_rate_limit_error, rag_service
 from app.services.document_store import document_store
 from app.services import email_service
 from app.services.auth_service import (
@@ -532,16 +532,43 @@ async def upload_doc(
         if os.path.exists(file_path):
             os.remove(file_path)
         raise
-    except (PdfReadError, ValueError) as e:
+    except ValueError as e:
         release_guest_slot()
         if os.path.exists(file_path):
             os.remove(file_path)
-        raise HTTPException(400, f"Could not read PDF: {e}") from e
+        if str(e) == "PDF contains too much extractable text":
+            raise HTTPException(
+                400,
+                "This PDF contains too much extractable text. Please try a smaller PDF.",
+            ) from e
+        if str(e).startswith("PDF exceeds the ") and str(e).endswith("-page limit"):
+            raise HTTPException(
+                400,
+                "This PDF exceeds the page limit. Please try a smaller PDF.",
+            ) from e
+        raise HTTPException(
+            400,
+            "We couldn't read this PDF. Please make sure it is a valid, "
+            "text-based PDF and try again.",
+        ) from e
+    except PdfReadError as e:
+        release_guest_slot()
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise HTTPException(
+            400,
+            "We couldn't read this PDF. Please make sure it is a valid, "
+            "text-based PDF and try again.",
+        ) from e
     except Exception as e:
         release_guest_slot()
         if os.path.exists(file_path):
             os.remove(file_path)
-        raise HTTPException(500, f"Processing failed: {str(e)}") from e
+        logger.exception("Unexpected PDF extraction failure")
+        raise HTTPException(
+            500,
+            "We couldn't process this document. Please try again later.",
+        ) from e
 
     try:
         chunk_count = rag_service.add_chunks(chunks)
@@ -549,14 +576,17 @@ async def upload_doc(
         release_guest_slot()
         if os.path.exists(file_path):
             os.remove(file_path)
-        if getattr(e, "code", None) == 429 or "RESOURCE_EXHAUSTED" in str(e).upper():
+        if is_embedding_rate_limit_error(e):
             raise HTTPException(
                 429,
-                "Gemini's embedding quota has been reached. Wait at least 60 seconds "
-                "before retrying, reduce the document size, or check your API quota "
-                "and billing at https://ai.google.dev/gemini-api/docs/rate-limits."
+                "Document processing is temporarily busy due to high demand. "
+                "Please wait 60 seconds and try uploading again, or try a smaller PDF.",
             ) from e
-        raise HTTPException(500, f"Processing failed: {str(e)}")
+        logger.exception("Unexpected document embedding failure")
+        raise HTTPException(
+            500,
+            "We couldn't process this document. Please try again later.",
+        ) from e
 
     info = {
         "id": doc_id,
@@ -579,11 +609,17 @@ async def upload_doc(
                 os.remove(file_path)
         except OSError as cleanup_error:
             cleanup_errors.append(str(cleanup_error))
-        detail = f"Metadata persistence failed: {e}"
         if cleanup_errors:
-            detail += f"; cleanup failed: {'; '.join(cleanup_errors)}"
+            logger.error(
+                "Metadata persistence and cleanup failed: %s",
+                "; ".join(cleanup_errors),
+            )
+        logger.exception("Could not save uploaded document metadata")
         release_guest_slot()
-        raise HTTPException(500, detail) from e
+        raise HTTPException(
+            500,
+            "The document was processed, but we couldn't save it. Please try again.",
+        ) from e
     return info
 
 @app.delete("/api/documents/{doc_id}")
@@ -632,4 +668,8 @@ def query_docs(
         )
         return result
     except Exception as e:
-        raise HTTPException(500, f"Query failed: {str(e)}. Check GOOGLE_API_KEY in .env")
+        logger.exception("Document query failed")
+        raise HTTPException(
+            500,
+            "We couldn't complete your request. Please try again later.",
+        ) from e

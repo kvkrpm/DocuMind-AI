@@ -744,7 +744,13 @@ class DocumentApiTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 429)
-        self.assertIn("embedding quota", response.json()["detail"])
+        self.assertEqual(
+            response.json()["detail"],
+            "Document processing is temporarily busy due to high demand. "
+            "Please wait 60 seconds and try uploading again, or try a smaller PDF.",
+        )
+        self.assertNotIn("Gemini", response.json()["detail"])
+        self.assertNotIn("https://", response.json()["detail"])
         self.assertEqual(list(self.upload_dir.glob("*.pdf")), [])
 
     def test_query_returns_citations_and_rejects_blank_question(self):

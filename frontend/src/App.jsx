@@ -6,6 +6,18 @@ const api = axios.create({ baseURL: API })
 const initialParams = new URLSearchParams(window.location.hash.slice(1))
 const initialResetToken = initialParams.get('reset_token')
 const initialVerifyToken = initialParams.get('verify_token')
+const uploadRateLimitMessage =
+  'Document processing is temporarily busy due to high demand. Please wait 60 seconds and try uploading again, or try a smaller PDF.'
+
+function getUserFacingError(error, fallback, rateLimitMessage = 'Please wait a moment and try again.') {
+  const status = error.response?.status
+  if (status === 429) return rateLimitMessage
+  if (!status || status >= 500) {
+    return status ? fallback : 'Unable to connect to the service. Please check your connection and try again.'
+  }
+  const detail = error.response?.data?.detail
+  return typeof detail === 'string' ? detail : fallback
+}
 
 api.interceptors.request.use((config) => {
   const token = sessionStorage.getItem('access_token') || sessionStorage.getItem('guest_session_token')
@@ -55,7 +67,7 @@ export default function App() {
       await api.delete('/api/guest/session')
     } catch (err) {
       if (err.response?.status !== 401) {
-        setAuthError(err.response?.data?.detail || err.message)
+        setAuthError(getUserFacingError(err, 'We could not end the guest session. Please try again.'))
       }
     } finally {
       logOut()
@@ -73,7 +85,7 @@ export default function App() {
       setIsGuest(true)
       setToken(res.data.access_token)
     } catch (err) {
-      setAuthError(err.response?.data?.detail || err.message)
+      setAuthError(getUserFacingError(err, 'We could not start a guest session. Please try again.'))
     } finally {
       setAuthLoading(false)
     }
@@ -86,7 +98,7 @@ export default function App() {
         logOut()
         setAuthError('Your session expired. Start a new guest session or sign in again.')
       } else {
-        setAuthError(err.response?.data?.detail || err.message)
+        setAuthError(getUserFacingError(err, 'We could not load your documents. Please try again.'))
       }
     })
   }, [token])
@@ -101,7 +113,7 @@ export default function App() {
       })
       .catch((err) => {
         setAuthMode('login')
-        setAuthError(err.response?.data?.detail || 'The verification link is invalid or expired.')
+        setAuthError(getUserFacingError(err, 'The verification link is invalid or expired.'))
         window.history.replaceState({}, '', window.location.pathname)
       })
   }, [])
@@ -145,7 +157,7 @@ export default function App() {
         setAuthNotice(err.response.data.detail)
         setEmail(email.trim())
       } else {
-        setAuthError(err.response?.data?.detail || err.message)
+        setAuthError(getUserFacingError(err, 'We could not sign you in. Please try again.'))
       }
     } finally {
       setAuthLoading(false)
@@ -160,7 +172,7 @@ export default function App() {
       const res = await api.post('/api/auth/verify-email/resend', { email })
       setAuthNotice(res.data.message)
     } catch (err) {
-      setAuthError(err.response?.data?.detail || err.message)
+      setAuthError(getUserFacingError(err, 'We could not send the verification email. Please try again.'))
     } finally {
       setAuthLoading(false)
     }
@@ -178,10 +190,11 @@ export default function App() {
       await fetchDocs()
     } catch (err) {
       setUploadError(
-        err.response?.data?.detail ||
-        (err.message === 'Network Error'
-          ? 'Could not reach the server. Check your connection and try again.'
-          : err.message),
+        getUserFacingError(
+          err,
+          'We could not upload this PDF. Please check the file and try again.',
+          uploadRateLimitMessage,
+        ),
       )
     } finally {
       setUploading(false)
@@ -194,7 +207,7 @@ export default function App() {
       await api.delete(`/api/documents/${id}`)
       await fetchDocs()
     } catch (err) {
-      alert(err.response?.data?.detail || err.message)
+      setAuthError(getUserFacingError(err, 'We could not delete this document. Please try again.'))
     }
   }
 
@@ -225,7 +238,10 @@ export default function App() {
     } catch (err) {
       setChat((previous) => [
         ...previous,
-        { role: 'assistant', text: `Error: ${err.response?.data?.detail || err.message}` },
+        {
+          role: 'assistant',
+          text: getUserFacingError(err, 'We could not complete your request. Please try again.'),
+        },
       ])
     } finally {
       setLoading(false)
@@ -355,7 +371,7 @@ export default function App() {
                 {authLoading ? 'Please wait...' : 'Continue as guest'}
               </button>
               <p className="text-xs text-zinc-500 mt-2">
-                Guest access ends when this tab closes; workspace data expires automatically. Document text is sent to Gemini. Avoid sensitive files.
+                Guest access ends when this tab closes; workspace data expires automatically. Document text is sent to our AI service. Avoid sensitive files.
               </p>
             </>
           )}
@@ -408,7 +424,7 @@ export default function App() {
           ))}
           {docs.length === 0 && <div className="text-xs text-zinc-400 text-center mt-10">No documents yet</div>}
         </div>
-        <div className="text-[11px] text-zinc-400 mt-4">FastAPI • LangChain • ChromaDB • Gemini</div>
+        <div className="text-[11px] text-zinc-400 mt-4">Your document workspace</div>
       </div>
 
       <div className="flex-1 flex flex-col min-h-[65vh] md:min-h-0">

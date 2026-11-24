@@ -1,6 +1,6 @@
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 from langchain_core.runnables import RunnableLambda
 
@@ -10,10 +10,15 @@ from app.services.rag_service import RAGService
 class FakeEmbeddings:
     def __init__(self):
         self.queries = []
+        self.document_batches = []
 
     def embed_query(self, text):
         self.queries.append(text)
         return [0.1, 0.2, 0.3]
+
+    def embed_documents(self, texts):
+        self.document_batches.append(texts)
+        return [[float(index)] for index, _ in enumerate(texts)]
 
 
 class FakeCollection:
@@ -21,6 +26,7 @@ class FakeCollection:
         self.results = results
         self.query_args = None
         self.get_args = None
+        self.add_args = None
 
     def query(self, **kwargs):
         self.query_args = kwargs
@@ -33,6 +39,9 @@ class FakeCollection:
             "documents": self.results.get("documents", [[]])[0],
             "metadatas": self.results.get("metadatas", [[]])[0],
         }
+
+    def add(self, **kwargs):
+        self.add_args = kwargs
 
 
 def make_service(results, answer="The contract renews annually."):
@@ -49,6 +58,60 @@ def make_service(results, answer="The contract renews annually."):
 
 
 class RagServiceTests(unittest.TestCase):
+    def test_add_chunks_batches_embedding_requests(self):
+        service = make_service(
+            {"documents": [[]], "metadatas": [[]], "distances": [[]]}
+        )
+        chunks = [
+            {"text": f"chunk {index}", "metadata": {"chunk_id": str(index)}}
+            for index in range(51)
+        ]
+
+        count = service.add_chunks(chunks)
+
+        self.assertEqual(count, 51)
+        self.assertEqual(
+            [len(batch) for batch in service.embeddings.document_batches],
+            [25, 25, 1],
+        )
+        self.assertEqual(len(service.collection.add_args["embeddings"]), 51)
+
+    def test_add_chunks_retries_rate_limited_batch_with_exponential_backoff(self):
+        service = make_service(
+            {"documents": [[]], "metadatas": [[]], "distances": [[]]}
+        )
+        rate_limit_error = RuntimeError("RESOURCE_EXHAUSTED: 429")
+        service.embeddings.embed_documents = Mock(
+            side_effect=[rate_limit_error, rate_limit_error, [[0.1]]]
+        )
+
+        with patch("app.services.rag_service.time.sleep") as sleep:
+            count = service.add_chunks([
+                {"text": "chunk", "metadata": {"chunk_id": "chunk-1"}}
+            ])
+
+        self.assertEqual(count, 1)
+        self.assertEqual(service.embeddings.embed_documents.call_count, 3)
+        self.assertEqual(sleep.call_args_list, [call(5), call(15)])
+
+    def test_add_chunks_raises_after_three_rate_limit_retries(self):
+        service = make_service(
+            {"documents": [[]], "metadatas": [[]], "distances": [[]]}
+        )
+        rate_limit_error = RuntimeError("RESOURCE_EXHAUSTED: 429")
+        service.embeddings.embed_documents = Mock(side_effect=rate_limit_error)
+
+        with (
+            patch("app.services.rag_service.time.sleep") as sleep,
+            self.assertRaisesRegex(RuntimeError, "RESOURCE_EXHAUSTED"),
+        ):
+            service.add_chunks([
+                {"text": "chunk", "metadata": {"chunk_id": "chunk-1"}}
+            ])
+
+        self.assertEqual(service.embeddings.embed_documents.call_count, 4)
+        self.assertEqual(sleep.call_args_list, [call(5), call(15), call(30)])
+
     def test_retrieves_chunks_and_returns_cited_source(self):
         results = {
             "ids": [["chunk-1"]],

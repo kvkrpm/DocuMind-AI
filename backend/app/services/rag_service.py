@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import time
 
 import chromadb
 from chromadb.config import Settings as ChromaSettings
@@ -17,6 +18,27 @@ _DENSE_TOP_K = 10
 _BM25_TOP_K = 10
 _RRF_CANDIDATE_LIMIT = 12
 _FINAL_TOP_K = 4
+_EMBEDDING_BATCH_SIZE = 25
+_EMBEDDING_RETRY_DELAYS = (5, 15, 30)
+
+
+def is_embedding_rate_limit_error(error: Exception) -> bool:
+    current = error
+    while current is not None:
+        response = getattr(current, "response", None)
+        status = (
+            getattr(current, "status_code", None)
+            or getattr(current, "code", None)
+            or getattr(response, "status_code", None)
+        )
+        if status == 429:
+            return True
+        if type(current).__name__.lower() == "resourceexhausted":
+            return True
+        if "RESOURCE_EXHAUSTED" in str(current).upper():
+            return True
+        current = current.__cause__ or current.__context__
+    return False
 
 # Provider switch
 if settings.LLM_PROVIDER == "gemini":
@@ -60,7 +82,28 @@ class RAGService:
         texts = [c["text"] for c in chunks]
         metadatas = [c["metadata"] for c in chunks]
         ids = [m["chunk_id"] for m in metadatas]
-        vectors = self.embeddings.embed_documents(texts)
+        vectors = []
+        for start in range(0, len(texts), _EMBEDDING_BATCH_SIZE):
+            batch = texts[start:start + _EMBEDDING_BATCH_SIZE]
+            for attempt, delay in enumerate((0, *_EMBEDDING_RETRY_DELAYS)):
+                try:
+                    vectors.extend(self.embeddings.embed_documents(batch))
+                    break
+                except Exception as error:
+                    if (
+                        not is_embedding_rate_limit_error(error)
+                        or attempt == len(_EMBEDDING_RETRY_DELAYS)
+                    ):
+                        raise
+                    wait = _EMBEDDING_RETRY_DELAYS[attempt]
+                    logger.warning(
+                        "Embedding batch rate limited; retrying in %s seconds "
+                        "(retry %s of %s)",
+                        wait,
+                        attempt + 1,
+                        len(_EMBEDDING_RETRY_DELAYS),
+                    )
+                    time.sleep(wait)
         self.collection.add(
             ids=ids,
             embeddings=vectors,
